@@ -16,13 +16,14 @@ import re
 import xlrd
 import time
 import json
+from pathlib import Path
 pd.set_option('future.no_silent_downcasting', True)
 
 class PopDataFetcher():
 
-    POP2000_STATE_PATH = 'https://www2.census.gov/programs-surveys/popest/datasets/2000-2009/state/asrh/sc-est2009-alldata5-all.csv'
-    POP2010_STATE_PATH = 'https://www2.census.gov/programs-surveys/popest/datasets/2010-2020/state/asrh/SC-EST2020-ALLDATA5.csv'
-    POP2020_STATE_PATH = 'https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/state/asrh/sc-est2024-alldata5.csv'
+    POP2000_STATE_PATH = r'https://www2.census.gov/programs-surveys/popest/datasets/2000-2009/state/asrh/sc-est2009-alldata5-all.csv'
+    POP2010_STATE_PATH = r'https://www2.census.gov/programs-surveys/popest/datasets/2010-2020/state/asrh/SC-EST2020-ALLDATA5.csv'
+    POP2020_STATE_PATH = r'https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/state/asrh/sc-est2024-alldata5.csv'
 
     def __init__(self):
         self.dataDict = {}
@@ -123,49 +124,6 @@ class UCRDataFetcher():
         self.popFetcher = PopDataFetcher()
         self.loadPopulationData()
 
-    def getTablePath(self, year, tableNr, partName = '', tableLetter = '', fullName = ''):
-        root_dir = f'{self.DATA_PATH}\\{year}'
-        if len(fullName) > 0:
-            search_string = fullName
-        elif year < 2011:
-            if isinstance(tableNr, int):
-                search_string = f'{year % 100}tbl{tableNr:02d}{tableLetter.lower()}.xls'
-            else:
-                search_string = f'{year % 100}tbl{tableNr}{tableLetter.lower()}.xls'
-        elif year == 2011 and tableNr < 8:
-            search_string = f'table-{tableNr}'
-        else:
-            search_string = f'Table_{tableNr}{tableLetter}_'
-        tablePaths = self.find_files_with_string_in_name(root_dir, search_string)
-        tablePaths = [p for p in tablePaths if 'MACOSX' not in p]
-        if len(tablePaths) > 1 and len(partName) > 0:
-            tablePaths = [p for p in tablePaths if partName in p]
-        if len(tablePaths) > 1:
-            print(tablePaths)
-            raise Exception("More than one candidate found for table during search")
-        elif len(tablePaths) == 0:
-            return None
-        return tablePaths[0]
-
-    def getBasePath(self, year):
-        if year == 2007:
-            basePath = 'documents\\'
-        elif year == 2008:
-            basePath = 'CIUS2008datatables\\'
-        elif year == 2009:
-            basePath = 'Data Tables\\'
-        elif year == 2010:
-            basePath = 'Excel\\'
-        elif year == 2011:
-            basePath = 'CIUS2011datatables\\'
-        elif year == 2012:
-            basePath = 'Tables\\'
-        elif year == 2019:
-            basePath = 'Data Tables\\'
-        else:
-            basePath = ''
-        return basePath
-
     def loadTable(self, tableName):
         if tableName == self.CIUS_STRING and len(self.dataDict[self.CIUS_STRING]) == 0:
             self.loadTable1Data()
@@ -247,9 +205,28 @@ class UCRDataFetcher():
                                   {'Population estimate' : {}
                                   }}}})
 
+    def find_files_by_name_no_extension_os(directory, target_name):
+        found_files = []
+        for filename in os.listdir(directory):
+            if os.path.isfile(os.path.join(directory, filename)):
+                name_without_ext = os.path.splitext(filename)[0]
+                if name_without_ext == target_name:
+                    found_files.append(filename)
+        return found_files
+
+    def getTablePath(year, name):
+        directory = Path("data/year/")
+        files = find_files_by_name_no_extension_os(directory, name)
+        if len(files) == 0:
+            return None 
+        return files[0]
+
     def loadTable1Data(self):
+        # table 1 contains national level crime time series from the last two decades
+
+        ### get oldest table 1 ###
         earliestYear = min(self.years)
-        filePathMin = self.getTablePath(earliestYear, 1)
+        filePathMin = self.getTablePath(earliestYear, 'table1')
         dfMin = pd.read_excel(filePathMin, skiprows = 3, skipfooter = 0)
         dfMin = dfMin.iloc[4:,:]
         dfMin = self.cleanEmptyCells(dfMin)
@@ -258,9 +235,12 @@ class UCRDataFetcher():
         dfMin[['Year', 'Population']] = dfMin['Population'].str.split('-', expand=True)
         dfMin['Year'] = range(earliestYear-19, earliestYear + 1)
         dfMin = self.dropEmptyColumns(dfMin)
+
+        # there was a different definition of rape before so we creat empty column for the revised definition
         dfMin['Rape (revised definition)'] = float("NaN")
         dfMin = dfMin.rename(columns={'Forcible rape': 'Rape (legacy definition)'})
         dfMin = dfMin.rename(columns={'Murder and non- negligent man- slaughter': 'Murder and nonnegligent manslaughter'})
+        # we only need the years before 1987 from this file
         dfMin = dfMin[dfMin['Year'] < 1987]
         # Remove the comma thousands separator
         dfMin['Population'] = dfMin['Population'].str.replace(',', '')
@@ -278,7 +258,7 @@ class UCRDataFetcher():
         dfMin = dfMin.rename(columns={'Violent Crime rate': 'Violent crime rate total'})
         dfMin = dfMin.rename(columns={'Property crime rate': 'Property crime rate total'})
 
-        filePathMed = self.getTablePath(2006, 1)
+        filePathMed = self.getTablePath(2006, 'table1')
         dfMed = pd.read_excel(filePathMed, skiprows = 2, skipfooter = 0)
         dfMed = self.cleanEmptyCells(dfMed)
         dfMed,_ = self.dropFooter(dfMed)
@@ -288,7 +268,7 @@ class UCRDataFetcher():
         dfMed.insert(loc=9, column='Rape (revised definition) rate', value=float("NaN"))
 
         latestYear = max(self.years)
-        filePath2024 = self.getTablePath(latestYear, 1, 'Crime_in_the_U')
+        filePath2024 = self.getTablePath(latestYear, 'table1')
         dfMax = pd.read_excel(filePath2024, skiprows = 3, skipfooter = 0)
         dfMax = self.cleanEmptyCells(dfMax)
         dfMax,_ = self.dropFooter(dfMax)
@@ -1767,467 +1747,7 @@ class UCRDataFetcher():
     def getSeries(self, tableName, varName, groupName, measureName):
         return list(self.dataDict[tableName][varName][groupName][measureName].columns)
 
-class CheckListDialog(QDialog):
 
-    def __init__(
-        self,
-        parent=None,
-        name='Check List Dialog',
-        stringlist=[],
-        checkedItems = None,
-        icon=None
-        ):
-        super().__init__(parent)
-
-        self.name = name
-        self.icon = icon
-        self.model = QStandardItemModel()
-        self.listView = QListView()
-        self.checkedItems = checkedItems
-        self.stringlist = stringlist
-
-        for string in self.stringlist:
-            item = QStandardItem(string)
-            item.setCheckable(True)
-            check = \
-                (Qt.Checked if (self.checkedItems is not None and string in self.checkedItems) else Qt.Unchecked)
-            item.setCheckState(check)
-            self.model.appendRow(item)
-
-        self.listView.setModel(self.model)
-
-        self.okButton = QPushButton('OK')
-        self.cancelButton = QPushButton('Cancel')
-        self.selectButton = QPushButton('Select All')
-        self.unselectButton = QPushButton('Unselect All')
-
-        hbox = QHBoxLayout()
-        hbox.addStretch(1)
-        hbox.addWidget(self.okButton)
-        hbox.addWidget(self.cancelButton)
-        hbox.addWidget(self.selectButton)
-        hbox.addWidget(self.unselectButton)
-
-        vbox = QVBoxLayout(self)
-        vbox.addWidget(self.listView)
-        vbox.addStretch(1)
-        vbox.addLayout(hbox)
-
-        self.setWindowTitle(self.name)
-        if self.icon:
-            self.setWindowIcon(self.icon)
-
-        self.okButton.clicked.connect(self.onAccepted)
-        self.cancelButton.clicked.connect(self.onRejected)
-        self.selectButton.clicked.connect(self.select)
-        self.unselectButton.clicked.connect(self.unselect)
-
-    def onAccepted(self):
-        self.choices = [self.model.item(i).text() for i in
-                        range(self.model.rowCount())
-                        if self.model.item(i).checkState()
-                        == Qt.Checked]
-        self.accept()
-
-    def onRejected(self):
-        self.choices = list(set(self.checkedItems).intersection(set(self.stringlist)))
-        self.reject()
-
-    def select(self):
-        for i in range(self.model.rowCount()):
-            item = self.model.item(i)
-            item.setCheckState(Qt.Checked)
-
-    def unselect(self):
-        for i in range(self.model.rowCount()):
-            item = self.model.item(i)
-            item.setCheckState(Qt.Unchecked)
-
-class UCRWindow(QWidget):
-
-    def __init__(self, mainMWindow):
-        super().__init__()
-        self.setWindowTitle("Crime python GUI - UCR viewing application")
-        self.resize(1500, 700)
-        self.hide()
-
-        self.fetcher = UCRDataFetcher()
-
-        self.mainMenuWindow = mainMWindow
-
-        self.seriesDict = {}
-
-        self.currentData = pd.DataFrame()
-
-        # Create an outer layout
-        outerLayout = QHBoxLayout()
-
-        # Create year range selection
-        yearLayout = QHBoxLayout()
-        yearLayout.addWidget(QLabel("Year minimum:"))
-        self.year_range_min = QComboBox()
-        yearLayout.addWidget(self.year_range_min)
-        yearLayout.addWidget(QLabel("Year maximum:"))
-        self.year_range_max = QComboBox()
-        yearLayout.addWidget(self.year_range_max)
-
-        # Create the plot layout
-        rightLayout = QVBoxLayout()
-        self.graphWidget = pg.PlotWidget()
-        rightLayout.addWidget(self.graphWidget)
-        # follow mouse movement on graph
-        self.proxy = pg.SignalProxy(self.graphWidget.scene().sigMouseMoved, rateLimit=60, slot=self.mouseMoved)
-        self.view_box = self.graphWidget.getViewBox()
-
-        # Create the sidebar on the left
-        self.tableBox = QComboBox()
-        self.tableBox.addItems(self.fetcher.dataDict.keys())
-        self.tableBox.setCurrentIndex(-1)
-
-        self.variableBox = QComboBox()
-        
-        self.groupBox = QComboBox()
-        
-        self.measureBox = QComboBox()
-         
-        leftLayout = QVBoxLayout()
-        leftLayout.addWidget(QLabel("Select crime statistic:"))
-        leftLayout.addWidget(self.tableBox)
-        leftLayout.addWidget(QLabel("Select variable/relationship:"))
-        leftLayout.addWidget(self.variableBox)
-        leftLayout.addWidget(QLabel("Select group/variable:"))
-        leftLayout.addWidget(self.groupBox)
-        leftLayout.addWidget(QLabel("Select measure:"))
-        leftLayout.addWidget(self.measureBox)
-        leftLayout.addLayout(yearLayout)
-
-        self.tableBox.activated.connect(self.selectTable)
-        self.variableBox.activated.connect(self.selectVariable)
-        self.groupBox.activated.connect(self.selectGroup)
-        self.measureBox.activated.connect(self.selectMeasure)
-        self.year_range_min.activated.connect(self.updatePlot)
-        self.year_range_max.activated.connect(self.updatePlot)
-
-        # Create the series selection
-        self.series_button = QPushButton("Select data series")
-        self.series_button.clicked.connect(self.open_series_dialog) # Connect button to a slot
-        leftLayout.addWidget(self.series_button)
-
-        # Create notifications checkbox
-        self.notes_check = QCheckBox("Notifications on/off:")
-        self.notes_check.stateChanged.connect(self.updatePlot)
-        leftLayout.addWidget(self.notes_check)
-
-        # UCR path
-        link = "https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/ucr"
-        self.weblink = QLabel(f'Data: <a href="{link}">About the UCR data</a>')
-        self.weblink.setOpenExternalLinks(True)
-        leftLayout.addWidget(self.weblink)
-
-        # Data path
-        link = "https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/ucr/publications"
-        self.datalink = QLabel(f'Data: <a href="{link}">Data is from here</a>')
-        self.datalink.setOpenExternalLinks(True)
-        leftLayout.addWidget(self.datalink)
-
-        self.backButton = QPushButton("Go back to main menu")
-        self.backButton.clicked.connect(self.goBackToMenu) # Connect button to a slot
-        leftLayout.addWidget(self.backButton)
-
-        # Notifications
-        self.notesLabel = QLabel('')
-        self.notesLabel.setWordWrap(True)
-        leftLayout.addWidget(self.notesLabel)
-
-        leftLayout.addStretch()
-
-        # Nest the inner layouts into the outer layout
-        outerLayout.addLayout(leftLayout)
-        outerLayout.addLayout(rightLayout)
-        # Set the Window's main layout
-        self.setLayout(outerLayout)
-
-    def closeEvent(self, event):
-        # Optional: Ask for confirmation before closing
-        reply = QMessageBox.question(self, 'Message',
-                                     "Are you sure to quit?", QMessageBox.Yes |
-                                     QMessageBox.No, QMessageBox.No)
-
-        if reply == QMessageBox.Yes:
-            event.accept()  # Accept the close event, allowing the window to close
-            print("Application is closing.")
-            # Perform any cleanup actions here
-            sys.exit(0) # Explicitly exit the application
-        else:
-            event.ignore()  # Ignore the close event, keeping the window open
-
-    def goBackToMenu(self):
-        self.mainMenuWindow.show()
-        self.hide()
-
-    def selectTable(self):
-        self.variableBox.clear()
-        self.groupBox.clear()
-        self.measureBox.clear()
-        self.notesLabel.setText(self.fetcher.getNotification(self.tableBox.currentText()))
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        self.fetcher.loadTable(self.tableBox.currentText())
-        QApplication.restoreOverrideCursor()
-        self.variableBox.addItems(self.fetcher.dataDict[self.tableBox.currentText()].keys())
-        self.variableBox.setCurrentIndex(-1)
-        self.updateYears()
-        self.updatePlot()
-
-    def selectVariable(self):
-        currentTable = self.tableBox.currentText()
-        currentVariable = self.variableBox.currentText()
-        currentGroup = self.groupBox.currentText()
-        currentMeasure = self.measureBox.currentText()
-        nextGroups = self.fetcher.dataDict[currentTable][currentVariable].keys()
-        self.groupBox.clear()
-        self.measureBox.clear()
-        self.groupBox.addItems(nextGroups)
-        if currentGroup in nextGroups:
-            self.groupBox.setCurrentText(currentGroup)
-            nextMeasures = self.fetcher.dataDict[currentTable][currentVariable][currentGroup].keys()
-            self.measureBox.addItems(nextMeasures)
-            if currentMeasure in nextMeasures:
-                self.measureBox.setCurrentText(currentMeasure)
-            else:
-                self.measureBox.setCurrentIndex(-1)
-        else:
-            self.groupBox.setCurrentIndex(-1)
-        self.updateSeries()
-        self.updatePlot()
-
-    def selectGroup(self):
-        currentTable = self.tableBox.currentText()
-        currentVariable = self.variableBox.currentText()
-        currentGroup = self.groupBox.currentText()
-        currentMeasure = self.measureBox.currentText()
-        nextMeasures = self.fetcher.dataDict[currentTable][currentVariable][currentGroup].keys()
-        self.measureBox.clear()
-        self.measureBox.addItems(nextMeasures)
-        if currentMeasure in nextMeasures:
-            self.measureBox.setCurrentText(currentMeasure)
-        else:
-            self.measureBox.setCurrentIndex(-1)
-        self.updateSeries()
-        self.updatePlot()
-
-    def selectMeasure(self):
-        self.updateSeries()
-        self.updatePlot()
-
-    def updateYears(self):
-        currentMinYear = self.year_range_min.currentText()
-        currentMaxYear = self.year_range_max.currentText()
-        self.year_range_min.clear()
-        self.year_range_max.clear()
-        minYear, maxYear = self.fetcher.getMinAndMaxYears(self.tableBox.currentText())
-        sorted_years = [str(y) for y in range(minYear, maxYear + 1)]
-        self.year_range_min.addItems(sorted_years[:-1])
-        self.year_range_max.addItems(sorted_years[1:])
-        self.year_range_min.setCurrentText(sorted_years[0])
-        self.year_range_max.setCurrentText(sorted_years[-1])
-
-    def updateSeries(self):
-        table = self.tableBox.currentText()
-        variable = self.variableBox.currentText()
-        group = self.groupBox.currentText()
-        measure = self.measureBox.currentText()
-        if '' in [table,variable,group,measure]:
-            return
-        series = self.fetcher.getSeries(table, variable, group, measure)
-        for s in series:
-            if s not in self.seriesDict.keys():
-                self.seriesDict[s] = {'number' : len(self.seriesDict.keys()),
-                                             'checked' : len(series) < 10}
-        delete = []
-        for s in self.seriesDict.keys():
-            if s not in series:
-                delete.append(s)
-        for d in delete:
-            del self.seriesDict[d] 
-
-    def getData(self):
-        table = self.tableBox.currentText()
-        variable = self.variableBox.currentText()
-        group = self.groupBox.currentText()
-        measure = self.measureBox.currentText()
-        if '' in [table, variable, group, measure]:
-            return pd.DataFrame()
-        return self.fetcher.dataDict[table][variable][group][measure]
-
-    def getMetaData(self):
-        table = self.tableBox.currentText()
-        variable = self.variableBox.currentText()
-        group = self.groupBox.currentText()
-        measure = self.measureBox.currentText()
-        if '' in [table, variable, group, measure]:
-            return pd.DataFrame()
-        return self.fetcher.metaDict[table][variable][group][measure]
-
-    def getExtraToolTips(self, series, year):
-        mDict = self.getMetaData()
-        text = ''
-        if 'Volume' in mDict.keys():
-            text = f'{text}\nVolume: {mDict['Volume'].loc[year,series]:,.0f}'
-        if 'Population' in mDict.keys():
-            text = f'{text}\nPopulation: {mDict['Population'].loc[year,series]:,.0f}'
-        if 'Demographic' in mDict.keys():
-            text = f'{text}\nDemographic population: {mDict['Demographic'].loc[year,series]:,.0f}'
-        if 'Agencies' in mDict.keys():
-            text = f'{text}\nNumber of agencies reporting: {mDict['Agencies'].loc[year,series]:,.0f}'
-        if 'Notes' in mDict.keys() and isinstance(mDict['Notes'].loc[year,series], str):
-            text = f'{text}{mDict['Notes'].loc[year,series]}'
-        return text
-        
-    def updatePlot(self):
-        self.graphWidget.clear()
-        self.graphWidget.addLegend()
-        df = self.getData()
-        if (len(df) == 0) or (int(self.year_range_min.currentText()) >= int(self.year_range_max.currentText())):
-            return
-        checkedSeries = [c for c in self.seriesDict.keys() if self.seriesDict[c]['checked']]
-        self.currentData = df[[s for s in df.columns if s in checkedSeries]]
-        # Set x-axis label
-        self.graphWidget.getAxis('bottom').setLabel(text="Year")
-        # Set y-axis label with styling
-        self.graphWidget.getAxis('left').setLabel(text=self.measureBox.currentText())
-        # Set title
-        minYear, maxYear = self.fetcher.getMinAndMaxYears(self.tableBox.currentText())
-        self.graphWidget.setTitle(f'{self.tableBox.currentText()} {minYear}-{maxYear}')
-        for series in checkedSeries:
-            if len(self.currentData) > 0:
-                # color scheme
-                seriesNumber = self.seriesDict[series]['number']
-                rgb = self.generate_distinct_color(seriesNumber, df.shape[1])
-                linestyle = self.generate_line_style(seriesNumber)
-                # plot
-                pen_style = pg.mkPen(rgb, width=2, style=linestyle)
-                year = self.currentData.index.to_numpy().astype(float)
-                value = self.currentData[series].to_numpy().astype(float)
-                self.graphWidget.plot(year, value, pen=pen_style, name=series)
-                self.updateNotes(series)
-        # Get the ViewBox
-        view_box = self.graphWidget.getPlotItem().vb
-
-        # Set the X-axis range from 0 to 6
-        view_box.setXRange(int(self.year_range_min.currentText()), int(self.year_range_max.currentText()))
-
-    def updateNotes(self, series):
-        if self.notes_check.isChecked():
-            mDict = self.getMetaData()
-            if 'Important' not in mDict.keys():
-                return
-
-            # Create a ScatterPlotItem
-            scatter_item = pg.ScatterPlotItem(
-                size=12,
-                symbol='o',
-                brush=pg.mkBrush(255, 255, 255, 200)
-            )
-            years = mDict['Important'].index[~mDict['Important'][series].isna()]
-            values = self.currentData[series][~mDict['Important'][series].isna()]
-
-            # Set the data for the scatter plot
-            scatter_item.setData(years, values)
-
-            # Add the scatter plot item to the plot Window
-            self.graphWidget.addItem(scatter_item)
-
-    def mouseMoved(self, e):
-        pos = e[0]
-        all_plot_items = self.graphWidget.listDataItems()       
-        if self.graphWidget.sceneBoundingRect().contains(pos) and (len(self.currentData) > 0):
-            mousePoint = self.graphWidget.getPlotItem().vb.mapSceneToView(pos)
-            closestYear = round(mousePoint.x())
-            yearData = self.currentData[self.currentData.index == closestYear]
-            self.graphWidget.setToolTip('')
-            if (self.currentData.shape[1] > 0) and (len(yearData) > 0):
-                closestSeries = yearData.columns.to_series().iloc[(yearData-mousePoint.y()).abs().to_numpy().argsort()[0,0]]
-                closestValue = yearData[[closestSeries]].iloc[0].to_numpy()[0]
-                x_range, y_range = self.view_box.viewRange()
-                if (np.abs(mousePoint.x() - closestYear) < 0.025*np.abs(x_range[0] - x_range[1])) and (np.abs(mousePoint.y() - closestValue) < 0.025*np.abs(y_range[0] - y_range[1])):
-                    p = self.graphWidget.mapToGlobal(QPoint(int(pos.x()),int(pos.y()))) 
-                    if closestValue.is_integer() or isinstance(closestValue, int):
-                        tooltip_text = f"{closestSeries}: {closestYear}\nValue: {closestValue:,.0f}"
-                    elif np.abs(closestValue) < 1:                   
-                        tooltip_text = f"{closestSeries}: {closestYear}\nValue: {closestValue:.2f}"
-                    elif np.abs(closestValue) < 20:
-                        tooltip_text = f"{closestSeries}: {closestYear}\nValue: {closestValue:.1f}"
-                    else:
-                        tooltip_text = f"{closestSeries}: {closestYear}\nValue: {closestValue:,.1f}" 
-                    tooltip_text = f'{tooltip_text}{self.getExtraToolTips(closestSeries,closestYear)}'
-                    #QToolTip.showText(p, tooltip_text)
-                    for item in all_plot_items:
-                        if item.name() is None:
-                            continue
-                        if item.name() == closestSeries:
-                            pen_style = pg.mkPen('w', width=4)
-                            item.setPen(pen_style)
-                            self.graphWidget.setToolTip(tooltip_text)
-                        else:
-                            pen_style = self.getPen(item.name())
-                            item.setPen(pen_style)
-                else:
-                    for item in all_plot_items:
-                        if item.name() is None:
-                            continue
-                        pen_style = self.getPen(item.name())
-                        item.setPen(pen_style)
-                    #QToolTip.hideText()
-                
-    def getPen(self, level, lineWidth=2):
-        # color scheme
-        df = self.getData()
-        levelNumber = self.seriesDict[level]['number']
-        rgb = self.generate_distinct_color(levelNumber, df.shape[1])
-        linestyle = self.generate_line_style(levelNumber)
-        pen_style = pg.mkPen(rgb, width=lineWidth, style=linestyle)
-        return pen_style
-
-    def open_series_dialog(self):
-        df = self.getData()
-        if len(df) == 0:
-            return
-        availableSeries = list(self.getData().columns)
-        checkedSeries = [c for c in self.seriesDict.keys() if self.seriesDict[c]['checked']]
-        dialog = CheckListDialog(self, 'Series', availableSeries, checkedItems=checkedSeries) # Pass 'self' (the main Window) as parent
-        dialog.exec_() # Use exec_() for a modal dialog, or show() for non-modal
-        addedSeries = [c for c in dialog.choices if c not in checkedSeries]
-        deletedSeries = [c for c in checkedSeries if c not in dialog.choices and c in availableSeries]
-        for c in addedSeries:
-            self.seriesDict[c]['checked'] = True
-        for c in deletedSeries:
-            self.seriesDict[c]['checked'] = False
-        # check for data
-        self.updatePlot()
-
-    def generate_distinct_color(self, step, num_steps): 
-        # Generate a color in HSL 
-        hue = step / num_steps  # evenly spaced hues 
-        lightness = 0.5  # fixed lightness 
-        saturation = 1.0  # full saturation 
-        rgb = colorsys.hls_to_rgb(hue, lightness, saturation) 
-        # Convert from [0, 1] to [0, 255] and round 
-        rgb = tuple(int(c * 255) for c in rgb)  
-        return rgb 
-
-    def generate_line_style(self, step):
-        # line style
-        if step % 5 == 0:
-            linestyle = Qt.SolidLine
-        elif step % 5 == 1:
-            linestyle = Qt.DashLine
-        elif step % 5 == 2:
-            linestyle = Qt.DotLine
-        elif step % 5 == 3:
-            linestyle = Qt.DashDotLine
-        elif step % 5 == 4:
-            linestyle = Qt.DashDotDotLine
-        return linestyle
 
 #if __name__ == "__main__":
 #    app = QApplication(sys.argv)
