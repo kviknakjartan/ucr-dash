@@ -21,49 +21,19 @@ pd.set_option('future.no_silent_downcasting', True)
 
 class PopDataFetcher():
 
-    POP2000_STATE_PATH = r'https://www2.census.gov/programs-surveys/popest/datasets/2000-2009/state/asrh/sc-est2009-alldata5-all.csv'
-    POP2010_STATE_PATH = r'https://www2.census.gov/programs-surveys/popest/datasets/2010-2020/state/asrh/SC-EST2020-ALLDATA5.csv'
-    POP2020_STATE_PATH = r'https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/state/asrh/sc-est2024-alldata5.csv'
-
     def __init__(self):
         self.dataDict = {}
 
         self.loadDemographics()
 
     def loadDemographics(self):
-        df001yUS = pd.read_excel('0009y1.xlsx', skiprows = 0, skipfooter = 0)
-        df101yUS = pd.read_excel('1020y1.xlsx', skiprows = 0, skipfooter = 0)
-        df201yUS = pd.read_excel('2024y1.xlsx', skiprows = 0, skipfooter = 0)
+        df001yUS = pd.read_excel(Path('data/0009y1.xlsx'), skiprows = 0, skipfooter = 0)
+        df101yUS = pd.read_excel(Path('data/1020y1.xlsx'), skiprows = 0, skipfooter = 0)
+        df201yUS = pd.read_excel(Path('data/2024y1.xlsx'), skiprows = 0, skipfooter = 0)
 
         self.dataDict['0009y1'] = df001yUS
         self.dataDict['1020y1'] = df101yUS
         self.dataDict['2024y1'] = df201yUS
-
-    def loadDemographics_(self):
-        #df001y = pd.read_csv(self.POP2000_STATE_PATH)
-        #df101y = pd.read_csv(self.POP2010_STATE_PATH)
-        #df201y = pd.read_csv(self.POP2020_STATE_PATH)
-
-        df001y = pd.read_excel('df001y.xlsx', skiprows = 0, skipfooter = 0)
-        df101y = pd.read_excel('df101y.xlsx', skiprows = 0, skipfooter = 0)
-        df201y = pd.read_excel('df201y.xlsx', skiprows = 0, skipfooter = 0)
-
-        self.dataDict['0009y1s'] = df001y
-        self.dataDict['1020y1s'] = df101y
-        self.dataDict['2024y1s'] = df201y
-
-        groups = ['SUMLEV', 'SEX', 'ORIGIN', 'RACE', 'AGE']
-        df001yUS = df001y.groupby(groups)[[c for c in df001y.columns if not c.isalpha()]].sum().reset_index()
-        df101yUS = df101y.groupby(groups)[[c for c in df101y.columns if not c.isalpha()]].sum().reset_index()
-        df201yUS = df201y.groupby(groups)[[c for c in df201y.columns if not c.isalpha()]].sum().reset_index()
-
-        self.dataDict['0009y1'] = df001yUS
-        self.dataDict['1020y1'] = df101yUS
-        self.dataDict['2024y1'] = df201yUS
-
-        df001yUS.to_excel('0009y1.xlsx', index=False)
-        df101yUS.to_excel('1020y1.xlsx', index=False)
-        df201yUS.to_excel('2024y1.xlsx', index=False)
 
     def getPopulation(self, year, age, sex = 0, origin = 0, race = range(1,7)):
         if year < 2000:
@@ -88,7 +58,7 @@ class PopDataFetcher():
 
 class UCRDataFetcher():
 
-    DATA_PATH = r"ucr\data"
+    DATA_PATH = r"data"
     CIUS_STRING = 'Crime in the United States: National volume and rate'
     OKLESC_STRING = 'Offenses Known to Law Enforcement by State by City'
     ARE_STRING = 'Arrests by Race and Ethnicity'
