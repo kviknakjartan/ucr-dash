@@ -205,7 +205,7 @@ class UCRDataFetcher():
                                   {'Population estimate' : {}
                                   }}}})
 
-    def find_files_by_name_no_extension_os(directory, target_name):
+    def find_files_by_name_no_extension_os(self, directory, target_name):
         found_files = []
         for filename in os.listdir(directory):
             if os.path.isfile(os.path.join(directory, filename)):
@@ -214,9 +214,9 @@ class UCRDataFetcher():
                     found_files.append(filename)
         return found_files
 
-    def getTablePath(year, name):
+    def getTablePath(self, year, name):
         directory = Path("data/year/")
-        files = find_files_by_name_no_extension_os(directory, name)
+        files = self.find_files_by_name_no_extension_os(directory, name)
         if len(files) == 0:
             return None 
         return files[0]
@@ -248,6 +248,7 @@ class UCRDataFetcher():
         dfMin['Population'] = pd.to_numeric(dfMin['Population'], errors='coerce')
         dfMin = dfMin.drop(columns=['Crime Index total'])
 
+        # create crime rate columns
         for c in dfMin.columns:
             if c in ['Year', 'Population']:
                 continue
@@ -258,6 +259,7 @@ class UCRDataFetcher():
         dfMin = dfMin.rename(columns={'Violent Crime rate': 'Violent crime rate total'})
         dfMin = dfMin.rename(columns={'Property crime rate': 'Property crime rate total'})
 
+        ### get table 1 from 2006 ###
         filePathMed = self.getTablePath(2006, 'table1')
         dfMed = pd.read_excel(filePathMed, skiprows = 2, skipfooter = 0)
         dfMed = self.cleanEmptyCells(dfMed)
@@ -267,6 +269,7 @@ class UCRDataFetcher():
         dfMed.insert(loc=8, column='Rape (revised definition)', value=float("NaN"))
         dfMed.insert(loc=9, column='Rape (revised definition) rate', value=float("NaN"))
 
+        ### get latest table 1 ###
         latestYear = max(self.years)
         filePath2024 = self.getTablePath(latestYear, 'table1')
         dfMax = pd.read_excel(filePath2024, skiprows = 3, skipfooter = 0)
@@ -301,8 +304,6 @@ class UCRDataFetcher():
         df.set_index('Year', inplace = True)
         df = df.astype(float)
 
-        #df.to_excel('df.xlsx', index=True)
-
         dfRates, dfVolumes = self.seperateRates(df)
 
         self.dataDict[self.CIUS_STRING] = \
@@ -310,7 +311,7 @@ class UCRDataFetcher():
                                   {'All groups' :
                                   {'Rate per 100,000 Inhabitants' : dfRates,
                                    'Volume' : dfVolumes}}}
-
+        # get population data
         popDf = dfVolumes.copy()
         for crime in dfRates.columns:
             popDf[crime] = dfVolumes['Population']
@@ -329,12 +330,7 @@ class UCRDataFetcher():
         footerDict = {}
         for year in self.years: 
             footerDict[year] = {}    
-            if year == 2004:
-                filePath = self.getTablePath(year, 8, '', 'a') 
-            elif year < 2006:
-                filePath = self.getTablePath(year, 8)
-            else: 
-                filePath = self.getTablePath(year, 8, 'Offenses_Known_to_Law_Enforcement_by_State_by_City_') 
+            filePath = self.getTablePath(year, 'table8') 
             if filePath is None:
                 if len(wholeData) > 0:
                     df = pd.DataFrame()
@@ -392,6 +388,7 @@ class UCRDataFetcher():
 
             df['State'] = self.cleanRows(df['State'])
 
+            # get footnote info
             for n in range(1,20):
                 footNote = footer.loc[footer['State'].str.startswith(str(n), na=False) & ~footer['State'].str.startswith(str(n+9), na=False),'State']
                 if len(footNote) == 1:
@@ -440,6 +437,7 @@ class UCRDataFetcher():
         wholeData = self.aggregateColumns(wholeData, 'Rape', 'Rape (revised definition)', 'Rape (legacy definition)')
         wholeData = wholeData.drop(columns = ['Rape (revised definition)','Rape (legacy definition)'])
 
+        # only indclude large cities
         citiesToInclude = []
         cities = wholeData.loc[wholeData['Population'] > 220000,'City'].unique()
         for city in cities:
@@ -455,8 +453,6 @@ class UCRDataFetcher():
             wholeData = pd.concat([wholeData,missingDf])
         wholeData = wholeData.sort_values(by=['Year', 'City'])
         wholeData = wholeData.reindex()
-        #wholeData.to_excel('test.xlsx', index=False)
-        
         
         crimes = [c for c in wholeData.columns if c not in ['State','City','Population','Year']]
         for crime in crimes:
@@ -494,8 +490,6 @@ class UCRDataFetcher():
                 noteStr = re.sub(r'\s*See the data declaration for further explanation.\s*','',noteStr)
                 df['Note'] = noteStr
                 notesDf = pd.concat([notesDf, df])
-
-        #notesDf.to_excel('notesDf.xlsx', index=False)
 
         popDf = pd.DataFrame()
         popDf['Year'] = self.years
@@ -540,10 +534,7 @@ class UCRDataFetcher():
         footerDict = {}
         for year in self.years: 
             footerDict[year] = {}    
-            if year < 2011:
-                filePath = self.getTablePath(year, 16)
-            else: 
-                filePath = self.getTablePath(year, 16, '','','Table_16_Rate_') 
+            filePath = self.getTablePath(year, 'table16') 
             if filePath is None:
                 if len(wholeData) > 0:
                     df = pd.DataFrame(columns = wholeData.columns)
@@ -553,9 +544,9 @@ class UCRDataFetcher():
                 continue
             df = pd.read_excel(filePath, skiprows = 3 + 2*(year == 2020), skipfooter = 0, sheet_name=0 + (year==2008))
             df = self.cleanEmptyCells(df)
-            #.to_excel('df.xlsx',index=False) 
             df = self.cleanColumnNames(df)
             df = self.dropEmptyColumns(df)
+
             df = df.rename(columns={f'{year} estimated population' : 'Population', 'Forcible rape' : 'Rape (legacy definition)'})
             df = df.rename(columns={'Unnamed: 0' : 'Population group', 'Rape (revised definition)' : 'Rape'})
             df = df.rename(columns={'Murder and Nonnegligent Homicide' : 'Murder and nonnegligent manslaughter', \
@@ -575,7 +566,7 @@ class UCRDataFetcher():
             df,footer = self.dropFooter(df) 
             df['Year'] = year
             wholeData = pd.concat([wholeData,df])
-        #wholeData.to_excel('wholeData.xlsx',index=False)
+        
         crimeCols = [c for c in wholeData.columns if c not in ['Population group','Population','Number of agencies']]
         popGrps = wholeData['Population group'].unique()
         for pGrp in popGrps:
@@ -649,10 +640,7 @@ class UCRDataFetcher():
         for year in self.years: 
             footerDict[year] = {}    
             
-            if year < 2011:
-                filePath = self.getTablePath(year, tableNr)
-            else: 
-                filePath = self.getTablePath(year, tableNr, 'Table_26_Percent_of_Offenses_Cleared_') 
+            filePath = self.getTablePath(year, 'table26')
             if filePath is None:
                 if len(wholeData) > 0:
                     df = pd.DataFrame(columns = wholeData.columns)
@@ -696,7 +684,7 @@ class UCRDataFetcher():
             df['Variable'] = df['Variable'].str.replace('Percent cleared by arrest','Percent cleared')
             df['Year'] = year
             wholeData = pd.concat([wholeData,df])
-        #wholeData.to_excel('wholeData.xlsx',index=False) 
+         
         crimeCols = [c for c in wholeData.columns if c not in ['Region','Variable','Number of agencies','Population']]
         regions = wholeData['Region'].unique()
         for region in regions:
@@ -706,9 +694,7 @@ class UCRDataFetcher():
             percentClrdDf = percentClrdDf.set_index('Year')
             volumeClrdDf = (volumeKnownDf * percentClrdDf) / 100
             volumeClrdDf = volumeClrdDf.round()
-            #volumeKnownDf.to_excel('volumeKnownDf.xlsx',index=True)
-            #percentClrdDf.to_excel('percentClrdDf.xlsx',index=True)
-            #volumeClrdDf.to_excel('volumeClrdDf.xlsx',index=True)
+        
             popDf = volumeKnownDf.copy()
             agenciesDf = volumeKnownDf.copy()
             popSeries = wholeData.loc[(wholeData['Region'] == region) & \
@@ -722,7 +708,7 @@ class UCRDataFetcher():
                 agenciesDf[crime] = agSeries.values
             rateKnownDf = 100000 * volumeKnownDf / popDf
             rateClrdDf = 100000 * volumeClrdDf / popDf
-            #percDf.to_excel('percDf.xlsx',index=True)
+            
             self.deep_update(self.dataDict, \
                                   {self.CLR_STRING : 
                                   {'Region by Crime' :
@@ -764,12 +750,10 @@ class UCRDataFetcher():
             percentClrdDf = percentClrdDf.set_index('Year')
             volumeClrdDf = (volumeKnownDf * percentClrdDf) / 100
             volumeClrdDf = volumeClrdDf.round()
-            #volumeKnownDf.to_excel('volumeKnownDf.xlsx',index=True)
-            #percentClrdDf.to_excel('percentClrdDf.xlsx',index=True)
-            #volumeClrdDf.to_excel('volumeClrdDf.xlsx',index=True)
+
             rateKnownDf = 100000 * volumeKnownDf / popDf
             rateClrdDf = 100000 * volumeClrdDf / popDf
-            #percDf.to_excel('percDf.xlsx',index=True)
+            
             self.deep_update(self.dataDict, \
                                   {self.CLR_STRING : 
                                   {'Crime by Region' :
@@ -793,10 +777,7 @@ class UCRDataFetcher():
         wholeData = pd.DataFrame()
         for year in self.years:
             for letter in ['A','B','C']:
-                if year == 2004:
-                    filePath = self.getTablePath(year, 43, '', letter + 'adj')
-                else:
-                    filePath = self.getTablePath(year, 43, '', letter) 
+                filePath = self.getTablePath(year, f'table43{letter}')
                 if filePath is None:
                     if len(wholeData) == 0:
                         continue
@@ -840,7 +821,6 @@ class UCRDataFetcher():
                 df['Agencies'] = agencies
                 wholeData = pd.concat([wholeData,df])
         wholeData = self.cleanEmptyCells(wholeData)
-        #wholeData.to_excel('test.xlsx', index=False)
         wholeData.set_index('Year', inplace = True)
         wholeData.replace("*", 0, inplace=True)
         crimes = df['Offense charged'].unique()
@@ -850,7 +830,7 @@ class UCRDataFetcher():
                 if letter == 'C' and crime in ['Curfew and loitering law violations','Runaways']:
                     continue
                 df = wholeData[(wholeData['Letter'] == letter) & (wholeData['Offense charged'] == crime)]
-                #df.to_excel('df.xlsx', index=True)
+                
                 df = df.drop(columns = ['Letter','Offense charged'])
                 df = df.astype(float)
                 agencies = df['Agencies']
@@ -894,14 +874,7 @@ class UCRDataFetcher():
         footerDict = {}
         for year in self.years: 
             footerDict[year] = {}    
-            if year == 2004:
-                filePath = self.getTablePath(year, 69, '', 'adj') 
-            elif year == 2000:
-                filePath = self.getTablePath(year, 69, '', '', 'rtbl69_00.xls')
-            elif year < 2011:
-                filePath = self.getTablePath(year, 69)
-            else: 
-                filePath = self.getTablePath(year, 69, 'Table_69_Arrest_by_State_') 
+            filePath = self.getTablePath(year, 'table69') 
             if filePath is None:
                 if len(wholeData) > 0:
                     df = pd.DataFrame(columns = wholeData.columns)
@@ -984,6 +957,7 @@ class UCRDataFetcher():
             df.columns = df.columns.str.replace('forcible rape', 'rape')
             df['Year'] = year
 
+            # footnote data
             statesWithNotes = statesTextMatches[0].str.cat(statesTextMatches[2], na_rep='').str.cat(statesTextMatches[3], na_rep='')
             statesWithNotesMatches = statesWithNotes.str.extract(r'^([A-Z]+\s*[A-Z]+\s*[A-Z]+)(\d+)?\s*\,?\s*(\d+)?s*\,?\s*(\d+)?')
             for n in range(1,20):
@@ -1026,7 +1000,6 @@ class UCRDataFetcher():
         wholeData = wholeData.reindex()
         wholeData['Group'] = wholeData['Group'].str.strip()
         wholeData['State'] = wholeData['State'].str.title()
-        #wholeData.to_excel('test.xlsx', index=False)
         
         crimes = [c for c in wholeData.columns if c not in ['State','Population','Year','Group','Number of agencies']]
         years = wholeData['Year'].unique()
@@ -1046,9 +1019,7 @@ class UCRDataFetcher():
                     if pd.isna(notesDf.loc[year, state]):
                         notesDf.loc[year, state] = f'\n{noteDict['note']}'
                     else:
-                        notesDf.loc[year, state] = f'{notesDf.loc[year, state]}\n{noteDict['note']}'
-                
-        #notesDf.to_excel('notesDf.xlsx', index=True)  
+                        notesDf.loc[year, state] = f'{notesDf.loc[year, state]}\n{noteDict['note']}' 
 
         for group in wholeData['Group'].unique():
             states = wholeData.loc[(wholeData['Year'] == wholeData.loc[0,'Year'].values[0]) & (wholeData['Group'] == group), 'State']
@@ -1086,24 +1057,7 @@ class UCRDataFetcher():
         footerDict = {}
         for year in self.years: 
             footerDict[year] = {}    
-            if year == 2003:
-                filePath = self.getTablePath(year, '2', '', '-4' if tableNr == 2 else '-5') 
-            elif year == 2004:
-                filePath = self.getTablePath(year, '2', '', '-4a' if tableNr == 2 else '-5a')
-            elif year < 2003:
-                filePath = self.getTablePath(year, '2', '', '-5' if tableNr == 2 else '-6')
-            elif year == 2005:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtab{tableNr}')
-            elif year == 2006:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtable{tableNr}')
-            elif year == 2007:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtbl{tableNr}')
-            elif year < 2011:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtbl0{tableNr}')
-            elif year == 2020:
-                filePath = self.getTablePath(year, tableNr, '', '', f'Expanded_Homicide_Data_Table_0{tableNr}_Murder_') 
-            else: 
-                filePath = self.getTablePath(year, tableNr, '', '', f'Expanded_Homicide_Data_Table_{tableNr if year != 2016 else tableNr - 1 - (tableNr == 2)}_Murder_')
+            filePath = self.getTablePath(year, f'htable{tableNr}') 
             if filePath is None:
                 if len(wholeData) > 0:
                     df = pd.DataFrame(columns = wholeData.columns)
@@ -1152,10 +1106,8 @@ class UCRDataFetcher():
                 df.loc[df['Age'] == 'Percent distribution', raceCols] *= 100
             df['Year'] = year
             df = self.dropEmptyColumns(df)
-            #df.to_excel('df.xlsx', index=False)
             wholeData = pd.concat([wholeData,df])
         wholeData = wholeData.reindex()
-        #wholeData.to_excel('test.xlsx', index=False)
         
         ageGrpDict = {
                 '1 to 8' : (1,8), '9 to 16' : (9,16), '30 to 39' : (30,39), '40 to 49' : (40,49), '50 to 59' : (50,59),
@@ -1217,9 +1169,7 @@ class UCRDataFetcher():
                                   'Volume' : {'Demographic' : demDf, 'Population' : popDf}}}}})
         percDf = wholeData[wholeData['Age'] == 'Percent distribution'].drop(columns=['Age'])
         percDf = percDf.set_index('Year')
-        #popDf.to_excel('popDf.xlsx', index=True)
-        #rateDf.to_excel('rateDf.xlsx', index=True)
-        #drateDf.to_excel('drateDf.xlsx', index=True)
+
         self.dataDict[tableString]['Age by Sex and Race']['Total']['Percentages (%)'] = percDf  
         self.metaDict[tableString]['Age by Sex and Race']['Total']['Percentages (%)'] = \
             self.metaDict[tableString]['Age by Sex and Race']['Total']['Rate per 100,000 Inhabitants']
@@ -1284,24 +1234,7 @@ class UCRDataFetcher():
         footerDict = {}
         for year in self.years: 
             footerDict[year] = {}    
-            if year == 2003:
-                filePath = self.getTablePath(year, '2', '', '-7') 
-            elif year == 2004:
-                filePath = self.getTablePath(year, '2', '', '-7a')
-            elif year < 2003:
-                filePath = self.getTablePath(year, '2', '', '-8')
-            elif year == 2005:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtab{tableNr-1}')
-            elif year == 2006:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtable{tableNr-1}')
-            elif year == 2007:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtbl{tableNr-1}')
-            elif year < 2011:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtbl0{tableNr}')
-            elif year == 2020:
-                filePath = self.getTablePath(year, tableNr, '', '', f'Expanded_Homicide_Data_Table_0{tableNr}_') 
-            else: 
-                filePath = self.getTablePath(year, tableNr, '', '', f'Expanded_Homicide_Data_Table_{tableNr if year != 2016 else 3}_')
+            filePath = self.getTablePath(year, f'htable{tableNr}')
             if filePath is None:
                 if len(wholeData) > 0:
                     df = pd.DataFrame(columns = wholeData.columns)
@@ -1324,7 +1257,7 @@ class UCRDataFetcher():
             df = df.rename(columns={'Unknown.2' : 'Unknown Ethnicity'})
             df = df.loc[~df['Race of victim'].isna(),:]
             df,footer = self.dropFooter(df)
-            #df.to_excel('df.xlsx', index=False)
+            
             df['Race of victim'] = self.cleanRows(df['Race of victim'])
             df['Race of victim'] = df['Race of victim'].str.capitalize()
             df.columns = df.columns.str.capitalize()
@@ -1362,7 +1295,6 @@ class UCRDataFetcher():
                 'Year offenders' : 'Year'})
             wholeData = pd.concat([wholeData,df])
         wholeData = wholeData.reindex()
-        #wholeData.to_excel('test.xlsx', index=False)
 
         raceGrpDict = {
                 'White' : [1], 'Black or african american' : [2], 'Other race' : [3,4,5], 'Unknown race' : range(1,6), \
@@ -1405,7 +1337,7 @@ class UCRDataFetcher():
             percDf = percDf.set_index('Year')
             rateDf = 100000 * volumeDf / popDf
             drateDf = 100000 * volumeDf / demDf
-            #percDf.to_excel('percDf.xlsx',index=True)
+            
             self.deep_update(self.dataDict, \
                                   {self.MVO_STRING : 
                                   {'Victim Description by Offender Description' :
@@ -1493,28 +1425,13 @@ class UCRDataFetcher():
         tableNr = 8
         for year in self.years: 
             footerDict[year] = {}     
-            if year == 2004:
-                filePath = self.getTablePath(year, '2', '', '-9a')
-            elif year < 2004:
-                filePath = self.getTablePath(year, '2', '', '-10')
-            elif year == 2005:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtab{tableNr-1}')
-            elif year == 2006:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtable{tableNr-1}')
-            elif year == 2007:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtbl{tableNr-1}')
-            elif year < 2011:
-                filePath = self.getTablePath(year, tableNr, '', '', f'shrtbl0{tableNr}')
-            elif year == 2020:
-                filePath = self.getTablePath(year, tableNr, '', '', f'Expanded_Homicide_Data_Table_0{tableNr}_') 
-            else: 
-                filePath = self.getTablePath(year, tableNr, '', '', f'Expanded_Homicide_Data_Table_{tableNr if year != 2016 else tableNr-4}_')
+            filePath = self.getTablePath(year, f'htable{tableNr}')
             if filePath is None:
                 continue
             df = pd.read_excel(filePath, skiprows = 3 + (year == 2020) + (year == 2001), skipfooter = 0)
             df = self.cleanEmptyCells(df)
             df = self.dropEmptyColumns(df)
-            #df = self.cleanColumnNames(df)
+            
             df = df.replace(r'^\s*-+\s*$', 0, regex=True)
             if 'Unnamed: 0' in df.columns:
                 df = df.rename(columns={'Unnamed: 0' : 'Weapon'})
@@ -1536,8 +1453,7 @@ class UCRDataFetcher():
             df['Weapon'] = df['Weapon'].str.replace('Total fireams','Total firearms')
             hasFirearms = df['Weapon'].str.contains('Firearms')
             df.loc[hasFirearms,'Weapon'] = 'Firearms, type not stated'
-            #df['Weapon'] = df['Weapon'].str.replace('Other weapons or Firearms, not stated','Firearms, type not stated')
-            #df['Weapon'] = df['Weapon'].str.replace('Other weapons or Firearms, type not stated','Firearms, type not stated')
+            
             emptyKnives = df.loc[df['Weapon'].str.contains('Knives') & df.iloc[:,1].isna(),'Weapon']
             if len(emptyKnives) == 1:
                 onlyInstrument = df.loc[df['Weapon'].str.contains('instruments'),'Weapon']
@@ -1568,7 +1484,7 @@ class UCRDataFetcher():
                 raise Exception(emptyWeapons)
             df,footer = self.dropFooter(df)
             df = df.set_index('Weapon')
-            #df.to_excel('df.xlsx',index=False)
+            
             if len(wholeData) == 0:
                 wholeData = df.T
             else:
@@ -1579,14 +1495,11 @@ class UCRDataFetcher():
         wholeData = wholeData.drop(columns=['Other weapons or Firearms, type not stated'])
         column_to_move = wholeData.pop('Firearms, type not stated')  # Remove 'colC' and store it
         wholeData.insert(6, 'Firearms, type not stated', column_to_move) # Insert 'colC' at index 0
-        #wholeData.to_excel('wholeData.xlsx',index=True)
         
         percDf = wholeData.copy()
         nonTotals = [c for c in wholeData if c != 'Total']
-        print(percDf[nonTotals].shape,len(percDf['Total']))
         percDf.loc[:,nonTotals] = 100 * wholeData.loc[:,nonTotals].div(wholeData['Total'], axis=0)
         percDf['Total'] = 100 * percDf['Total'] / percDf['Total']  
-        percDf.to_excel('percDf.xlsx',index=True)
         self.dataDict[self.MW_STRING] = \
                                   {'All crime' :
                                   {'All groups' :
