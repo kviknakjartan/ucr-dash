@@ -10,6 +10,22 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 fetcher = UCRDataFetcher()
 
 app.layout = dbc.Container(fluid=True, children=[
+
+        dbc.Row([
+            html.Div(
+                className="app-header",
+                children=[
+                    html.Div('UCR Crime Data Viewer', className="app-header--title")
+                ]
+            ),
+            html.P(["The US ",
+                    html.A("Uniform Crime Reporting", 
+                        href="https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/ucr", 
+                        target="_blank"),
+                    ''' Program (UCR) is a nationwide, cooperative, statistical effort of more than 18,000 law enforcement 
+                        agencies voluntarily reporting data on crimes brought to their attention.'''
+                    ])
+        ]),
         dbc.Row([
             dbc.Col(
                 html.Div([
@@ -34,12 +50,6 @@ app.layout = dbc.Container(fluid=True, children=[
                     "4. Select measure:",
                     dcc.Dropdown(id='measure-dropdown'),
                 ]), width = 6)
-        ]),
-
-        dbc.Row([
-            html.Div([
-                html.Hr()
-            ], className="bg-white p-0")
         ]),
 
         dbc.Row([
