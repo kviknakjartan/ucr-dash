@@ -1,51 +1,117 @@
 from dash import Dash, dcc, html, Input, Output, callback
+from get_ucr_data import UCRDataFetcher
+import dash_bootstrap_components as dbc
+from dash_bootstrap_templates import load_figure_template
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+load_figure_template('cyborg')
 
-app = Dash(__name__, external_stylesheets=external_stylesheets)
+app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 
-all_options = {
-    'America': ['New York City', 'San Francisco', 'Cincinnati'],
-    'Canada': ['Montréal', 'Toronto', 'Ottawa']
-}
-app.layout = html.Div([
-    dcc.RadioItems(
-        list(all_options.keys()),
-        'America',
-        id='countries-radio',
-    ),
+fetcher = UCRDataFetcher()
 
-    html.Hr(),
+app.layout = dbc.Container(fluid=True, children=[
+        dbc.Row([
+            dbc.Col(
+                html.Div([
+                    "1. Select crime statistic:",
+                    dcc.Dropdown(list(fetcher.dataDict.keys()), next(iter(fetcher.dataDict)), id='indicator-dropdown')
+                ]), width = 6),
+            dbc.Col(
+                html.Div([
+                    "2. Select variable/relationship:",
+                    dcc.Dropdown(id='variable-dropdown'),
+                ]), width = 6)
+        ]),
 
-    dcc.RadioItems(id='cities-radio'),
+        dbc.Row([
+            dbc.Col(
+                html.Div([
+                    "3. Select group/variable:",
+                    dcc.Dropdown(id='group-dropdown'),
+                ]), width = 6),
+            dbc.Col(
+                html.Div([
+                    "4. Select measure:",
+                    dcc.Dropdown(id='measure-dropdown'),
+                ]), width = 6)
+        ]),
 
-    html.Hr(),
+        dbc.Row([
+            html.Div([
+                html.Hr()
+            ], className="bg-white p-0")
+        ]),
 
-    html.Div(id='display-selected-values')
+        dbc.Row([
+            html.Div([
+                "5. Select data series:",
+                dcc.Dropdown(id='series-dropdown', multi = True),
+            ])
+        ]),
+
+        dbc.Row([
+            html.Div([
+                #dcc.Graph(id='graph-with-slider'),
+                dcc.RangeSlider(id='year-slider', 
+                                step = 1, 
+                                tooltip={"placement": "bottom", "always_visible": True},
+                                marks=None)
+            ])
+        ])
 ])
 
 
 @callback(
-    Output('cities-radio', 'options'),
-    Input('countries-radio', 'value'))
-def set_cities_options(selected_country):
-    return [{'label': i, 'value': i} for i in all_options[selected_country]]
-
-
-@callback(
-    Output('cities-radio', 'value'),
-    Input('cities-radio', 'options'))
-def set_cities_value(available_options):
-    return available_options[0]['value']
-
+    [Output('variable-dropdown', 'options'),
+    Output('variable-dropdown', 'value')],
+    [Input('indicator-dropdown', 'value')])
+def set_variable_options(selected_indicator):
+    fetcher.loadTable(selected_indicator)
+    return [{'label': i, 'value': i} for i in fetcher.dataDict[selected_indicator].keys()], \
+        next(iter(fetcher.dataDict[selected_indicator]))
 
 @callback(
-    Output('display-selected-values', 'children'),
-    Input('countries-radio', 'value'),
-    Input('cities-radio', 'value'))
-def set_display_children(selected_country, selected_city):
-    return f'{selected_city} is a city in {selected_country}'
+    [Output('group-dropdown', 'options'),
+    Output('group-dropdown', 'value')],
+    [Input('indicator-dropdown', 'value'),
+    Input('variable-dropdown', 'value')])
+def set_group_options(selected_indicator, selected_variable):
+    return [{'label': i, 'value': i} for i in fetcher.dataDict[selected_indicator][selected_variable].keys()], \
+        next(iter(fetcher.dataDict[selected_indicator][selected_variable]))
 
+@callback(
+    [Output('measure-dropdown', 'options'),
+    Output('measure-dropdown', 'value')],
+    [Input('indicator-dropdown', 'value'),
+    Input('variable-dropdown', 'value'),
+    Input('group-dropdown', 'value')])
+def set_measure_options(selected_indicator, selected_variable, selected_group):
+    return [{'label': i, 'value': i} for i in fetcher.dataDict[selected_indicator][selected_variable][selected_group].keys()], \
+        next(iter(fetcher.dataDict[selected_indicator][selected_variable][selected_group]))
+
+@callback(
+    Output('series-dropdown', 'options'),
+    Input('indicator-dropdown', 'value'),
+    Input('variable-dropdown', 'value'),
+    Input('group-dropdown', 'value'),
+    Input('measure-dropdown', 'value'))
+def set_series_options(selected_indicator, selected_variable, selected_group, selected_measure):
+    return [{'label': i, 'value': i} for i in \
+        fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure].columns]
+
+@callback(
+    [Output('year-slider', 'min'),
+    Output('year-slider', 'max'),
+    Output('year-slider', 'value')],
+    [Input('indicator-dropdown', 'value'),
+    Input('variable-dropdown', 'value'),
+    Input('group-dropdown', 'value'),
+    Input('measure-dropdown', 'value')])
+def set_slider_minmax_data(selected_indicator, selected_variable, selected_group, selected_measure):
+    minimum = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure].index.min()
+    maximum = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure].index.max()
+    print(minimum,maximum)
+    return minimum, maximum, (minimum, maximum)
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -181,11 +181,11 @@ class UCRDataFetcher():
             if os.path.isfile(os.path.join(directory, filename)):
                 name_without_ext = os.path.splitext(filename)[0]
                 if name_without_ext == target_name:
-                    found_files.append(filename)
+                    found_files.append(os.path.join(directory, filename))
         return found_files
 
     def getTablePath(self, year, name):
-        directory = Path("data/year/")
+        directory = Path(f"data/{year}/")
         files = self.find_files_by_name_no_extension_os(directory, name)
         if len(files) == 0:
             return None 
