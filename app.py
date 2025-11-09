@@ -2,6 +2,8 @@ from dash import Dash, dcc, html, Input, Output, callback
 from get_ucr_data import UCRDataFetcher
 import dash_bootstrap_components as dbc
 from dash_bootstrap_templates import load_figure_template
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 load_figure_template('cyborg')
 
@@ -61,12 +63,12 @@ app.layout = dbc.Container(fluid=True, children=[
 
         dbc.Row([
             html.Div([
-                #dcc.Graph(id='graph-with-slider'),
+                dcc.Graph(id='graph-with-slider', responsive='auto'),
                 dcc.RangeSlider(id='year-slider', 
                                 step = 1, 
                                 tooltip={"placement": "bottom", "always_visible": True},
                                 marks=None)
-            ])
+            ], style={'width': '100%', 'height': '600px'})
         ])
 ])
 
@@ -120,8 +122,49 @@ def set_series_options(selected_indicator, selected_variable, selected_group, se
 def set_slider_minmax_data(selected_indicator, selected_variable, selected_group, selected_measure):
     minimum = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure].index.min()
     maximum = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure].index.max()
-    print(minimum,maximum)
     return minimum, maximum, (minimum, maximum)
+
+@callback(
+    Output('graph-with-slider', 'figure'),
+    Input('year-slider', 'value'),
+    Input('indicator-dropdown', 'value'),
+    Input('variable-dropdown', 'value'),
+    Input('group-dropdown', 'value'),
+    Input('measure-dropdown', 'value'),
+    Input('series-dropdown', 'value'))
+def generate_plot(selected_years, selected_indicator, selected_variable, selected_group, selected_measure, selected_series):
+    df = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure]
+    if selected_series is None:
+        selected_series = []
+    df = df[selected_series]
+    fig = make_subplots()
+    for col in df.columns:
+        # Add traces
+        fig.add_trace(
+            go.Scatter(x=df.index,
+                y=df[col], 
+                name=col,
+                hovertemplate =
+                'Value: %{y:.2f}'+
+                '<br>Year: %{x:.0f}')
+        )
+    fig.update_layout(
+        title_text="Graph 1: Global mean surface temperature (instrumental record) 1850 to present",
+        xaxis=dict(range=selected_years),
+        legend=dict(
+            x=0.1,  # x-position (0.1 is near left)
+            y=0.7,  # y-position (0.9 is near top)
+            xref="container",
+            yref="container",
+            orientation = 'h'
+        )
+    )
+    # Set x-axis title
+    fig.update_xaxes(title_text="Year")
+
+    # Set y-axes titles
+    fig.update_yaxes(title_text=selected_measure)
+    return fig
 
 if __name__ == '__main__':
     app.run(debug=True)
