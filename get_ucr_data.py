@@ -85,7 +85,7 @@ class UCRDataFetcher():
                          self.MW_STRING : {},
                          self.CP_STRING : {}}
         self.metaDict = {}
-        self.noteDict = {self.AS_STRING : "NOTE:  Because the number of agencies submitting arrest data varies from year to year, users are cautioned about making direct comparisons between arrest totals and those published in previous years' editions of Crime in the United States. Further, arrest figures may vary widely from state to state because some Part II crimes are not considered crimes in some states."}
+        self.noteDict = {self.AS_STRING : "NOTE: Because the number of agencies submitting arrest data varies from year to year, users are cautioned about making direct comparisons between arrest totals and those published in previous years' editions of Crime in the United States. Further, arrest figures may vary widely from state to state because some Part II crimes are not considered crimes in some states."}
 
         with open('states.json', 'r') as file:
             states = json.load(file)
@@ -290,7 +290,7 @@ class UCRDataFetcher():
                                   {self.CIUS_STRING : 
                                   {'All crime' :
                                   {'All groups' :
-                                  {'Rate per 100,000 Inhabitants' : {'Population' : popDf, 'Volume' : dfVolumes},
+                                  {'Rate per 100,000 Inhabitants' : {'Volume' : dfVolumes, 'Population' : popDf},
                                    'Volume' : {'Population' : popDf}}}}})
 
 
@@ -495,8 +495,8 @@ class UCRDataFetcher():
                                   {self.OKLESC_STRING : 
                                   {crime :
                                   {'All groups' :
-                                  {'Rate per 100,000 Inhabitants' : {'Notes' : nDf, 'Population' : popDf, 'Volume' : volumeDf, 'Important' : nDf},
-                                   'Volume' : {'Notes' : nDf, 'Population' : popDf, 'Important' : nDf}}}}})
+                                  {'Rate per 100,000 Inhabitants' : {'Volume' : volumeDf, 'Population' : popDf, 'Notes' : nDf, 'Important' : nDf},
+                                   'Volume' : {'Population' : popDf, 'Notes' : nDf, 'Important' : nDf}}}}})
     
     def loadTable16Data(self):
         wholeData = pd.DataFrame()
@@ -833,9 +833,9 @@ class UCRDataFetcher():
                                   {crime :
                                   {group :
                                   {
-                                  'Rate per 100,000 Inhabitants' : {'Population' : dfPop, 'Volume' : dfVolumes, 'Agencies' : dfAge},
+                                  'Rate per 100,000 Inhabitants' : {'Volume' : dfVolumes, 'Population' : dfPop, 'Agencies' : dfAge},
                                   'Volume' : {'Population' : dfPop, 'Agencies' : dfAge},
-                                  'Percentages (%)' : {'Population' : dfPop, 'Volume' : dfVolumes, 'Agencies' : dfAge}}}}})
+                                  'Percentages (%)' : {'Volume' : dfVolumes, 'Population' : dfPop, 'Agencies' : dfAge}}}}})
             
 
     def loadTable69Data(self):
@@ -1018,8 +1018,8 @@ class UCRDataFetcher():
                                   {crime :
                                   {group :
                                   {'Rate per 100,000 Inhabitants' : 
-                                              {'Notes' : notesDf, 'Population' : populationDf, 'Volume' : volumeDf, 'Agencies' : agencyDf, 'Important' : importantDf},
-                                   'Volume' : {'Notes' : notesDf, 'Population' : populationDf, 'Agencies' : agencyDf, 'Important' : importantDf}}}}})
+                                              {'Volume' : volumeDf, 'Population' : populationDf, 'Agencies' : agencyDf, 'Notes' : notesDf, 'Important' : importantDf},
+                                   'Volume' : {'Population' : populationDf, 'Agencies' : agencyDf, 'Notes' : notesDf, 'Important' : importantDf}}}}})
         
     def loadHTable2and3Data(self, tableString, tableNr = 2):
         wholeData = pd.DataFrame()
@@ -1132,10 +1132,9 @@ class UCRDataFetcher():
                                   {'Age by Sex and Race' :
                                   {ageGrp :
                                   {
-                                  'Rate per 100,000 Members of Population at Risk' : {'Demographic' : demDf,
-                                                                                    'Population' : popDf, 'Volume' : volumeDf},
-                                  'Rate per 100,000 Inhabitants' : {'Demographic' : demDf, 'Population' : popDf,
-                                                                                    'Volume' : volumeDf},
+                                  'Rate per 100,000 Members of Population at Risk' : {'Volume' : volumeDf, 'Demographic' : demDf,
+                                                                                    'Population' : popDf},
+                                  'Rate per 100,000 Inhabitants' : {'Volume' : volumeDf, 'Demographic' : demDf, 'Population' : popDf},
                                   'Volume' : {'Demographic' : demDf, 'Population' : popDf}}}}})
         percDf = wholeData[wholeData['Age'] == 'Percent distribution'].drop(columns=['Age'])
         percDf = percDf.set_index('Year')
@@ -1192,10 +1191,9 @@ class UCRDataFetcher():
                                   {'Sex and Race by Age' :
                                   {raceGrp :
                                   {
-                                  'Rate per 100,000 Members of Population at Risk' : {'Demographic' : demDf,
-                                                                                    'Population' : popDf, 'Volume' : volumeDf},
-                                  'Rate per 100,000 Inhabitants' : {'Demographic' : demDf, 'Population' : popDf,
-                                                                                    'Volume' : volumeDf},
+                                  'Rate per 100,000 Members of Population at Risk' : {'Volume' : volumeDf, 'Demographic' : demDf,
+                                                                                    'Population' : popDf},
+                                  'Rate per 100,000 Inhabitants' : {'Volume' : volumeDf, 'Demographic' : demDf, 'Population' : popDf},
                                   'Volume' : {'Demographic' : demDf, 'Population' : popDf}}}}})
 
     def loadHTable6Data(self, tableNr = 6):
@@ -1322,12 +1320,11 @@ class UCRDataFetcher():
                                   {'Victim Description by Offender Description' :
                                   {vRaceGrp :
                                   {
-                                  'Rate per 100,000 Members of Population at Risk' : {'Demographic' : demDf,
-                                                                                    'Population' : popDf, 'Volume' : volumeDf},
-                                  'Rate per 100,000 Inhabitants' : {'Demographic' : demDf, 'Population' : popDf,
-                                                                                    'Volume' : volumeDf},
+                                  'Rate per 100,000 Members of Population at Risk' : {'Volume' : volumeDf, 'Demographic' : demDf,
+                                                                                    'Population' : popDf},
+                                  'Rate per 100,000 Inhabitants' : {'Volume' : volumeDf, 'Demographic' : demDf, 'Population' : popDf},
                                   'Volume' : {'Demographic' : demDf, 'Population' : popDf},
-                                  'Percentages (%)' : {'Demographic' : demDf, 'Population' : popDf, 'Volume' : volumeDf}}}}})
+                                  'Percentages (%)' : {'Volume' : volumeDf, 'Demographic' : demDf, 'Population' : popDf}}}}})
         
 
         for oRaceGrp in raceCols:
@@ -1381,12 +1378,11 @@ class UCRDataFetcher():
                                   {'Offender Description by Victim Description' :
                                   {oRaceGrp :
                                   {
-                                  'Rate per 100,000 Members of Population at Risk' : {'Demographic' : demDf,
-                                                                                    'Population' : popDf, 'Volume' : volumeDf},
-                                  'Rate per 100,000 Inhabitants' : {'Demographic' : demDf, 'Population' : popDf,
-                                                                                    'Volume' : volumeDf},
+                                  'Rate per 100,000 Members of Population at Risk' : {'Volume' : volumeDf, 'Demographic' : demDf,
+                                                                                    'Population' : popDf},
+                                  'Rate per 100,000 Inhabitants' : {'Volume' : volumeDf, 'Demographic' : demDf, 'Population' : popDf},
                                   'Volume' : {'Demographic' : demDf, 'Population' : popDf},
-                                  'Percentages (%)' : {'Demographic' : demDf, 'Population' : popDf, 'Volume' : volumeDf}}}}})
+                                  'Percentages (%)' : {'Volume' : volumeDf, 'Demographic' : demDf, 'Population' : popDf}}}}})
         
     def loadHTable8Data(self):
         wholeData = pd.DataFrame()

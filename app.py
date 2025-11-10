@@ -4,6 +4,8 @@ import dash_bootstrap_components as dbc
 from dash_bootstrap_templates import load_figure_template
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import numpy as np
+import pandas as pd
 
 load_figure_template('cyborg')
 
@@ -133,23 +135,27 @@ def set_slider_minmax_data(selected_indicator, selected_variable, selected_group
     Input('measure-dropdown', 'value'),
     Input('series-dropdown', 'value'))
 def generate_plot(selected_years, selected_indicator, selected_variable, selected_group, selected_measure, selected_series):
-    df = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure]
+    
     if selected_series is None:
         selected_series = []
-    df = df[selected_series]
+    df = fetcher.dataDict[selected_indicator][selected_variable][selected_group][selected_measure][selected_series]
+    meta = fetcher.metaDict[selected_indicator][selected_variable][selected_group][selected_measure]
+
     fig = make_subplots()
     for col in df.columns:
+        customdata = pd.DataFrame(columns = ['Volume', 'Population', 'Demographic', 'Agencies', 'Notes'])
+        for key, df_m in meta.items():
+            customdata[key] = df_m[col].fillna('')
         # Add traces
         fig.add_trace(
             go.Scatter(x=df.index,
                 y=df[col], 
                 name=col,
-                hovertemplate =
-                'Value: %{y:.2f}'+
-                '<br>Year: %{x:.0f}')
+                customdata = customdata,
+                hovertemplate = create_hover_template(df[col], col, meta))
         )
     fig.update_layout(
-        title_text="Graph 1: Global mean surface temperature (instrumental record) 1850 to present",
+        title_text=f"{selected_indicator}",
         xaxis=dict(range=selected_years),
         legend=dict(
             x=0.1,  # x-position (0.1 is near left)
@@ -165,6 +171,31 @@ def generate_plot(selected_years, selected_indicator, selected_variable, selecte
     # Set y-axes titles
     fig.update_yaxes(title_text=selected_measure)
     return fig
+
+def create_hover_template(y, col, meta_data):
+
+
+    if isinstance(y.iloc[0], int):
+        template =  '<b>Value: %{y:.0f}'+'<br><i>Year: %{x:.0f}</i></b>'
+    elif np.abs(y.iloc[0]) < 1:                   
+        template =  '<b>Value: %{y:.3f}'+'<br><i>Year: %{x:.0f}</i></b>'
+    else:
+        template =  '<b>Value: %{y:.2f}'+'<br><i>Year: %{x:.0f}</i></b>'
+
+    for key, df in meta_data.items():
+
+        if key == 'Volume':
+            template += '<br>Volume: %{customdata[0]:,.0f}'
+        elif key == 'Population':
+            template += '<br>Population: %{customdata[1]:,.0f}'
+        elif key == 'Demographic':
+            template += '<br>Demographic population: %{customdata[2]:,.0f}'
+        elif key == 'Agencies':
+            template += '<br>Number of agencies reporting: %{customdata[3]:,.0f}'
+        elif key == 'Notes':
+            template += '<br><i>%{customdata[4]}</i>'
+
+    return template
 
 if __name__ == '__main__':
     app.run(debug=True)
