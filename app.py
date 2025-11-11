@@ -11,6 +11,8 @@ load_figure_template('cyborg')
 
 app = Dash(__name__, external_stylesheets=[dbc.themes.CYBORG])
 
+server = app.server
+
 fetcher = UCRDataFetcher()
 
 app.layout = dbc.Container(fluid=True, children=[
@@ -27,14 +29,22 @@ app.layout = dbc.Container(fluid=True, children=[
                         href="https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/ucr", 
                         target="_blank"),
                     ''' Program (UCR) is a nationwide, cooperative, statistical effort of more than 18,000 law enforcement 
-                        agencies voluntarily reporting data on crimes brought to their attention.'''
-                    ])
+                        agencies voluntarily reporting data on crimes brought to their attention. Data from ''',
+                    html.A("https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/ucr/publications", 
+                        href="https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/ucr/publications", 
+                        target="_blank")
+            ])
         ]),
         dbc.Row([
             dbc.Col(
                 html.Div([
                     "1. Select crime statistic:",
-                    dcc.Dropdown(list(fetcher.dataDict.keys()), next(iter(fetcher.dataDict)), id='indicator-dropdown')
+                    dcc.Dropdown(list(fetcher.dataDict.keys()), next(iter(fetcher.dataDict)), id='indicator-dropdown'),
+                    dcc.Loading(
+                        id="loading-output",
+                        type="default", # or "cube", "circle", "dot", "graph", "spinner"
+                        children=html.Div(id='output-div')
+                    )
                 ]), width = 6),
             dbc.Col(
                 html.Div([
@@ -70,19 +80,29 @@ app.layout = dbc.Container(fluid=True, children=[
                                 step = 1, 
                                 tooltip={"placement": "bottom", "always_visible": True},
                                 marks=None)
-            ], style={'width': '100%', 'height': '600px'})
+            ], style={'width': '100%', 'height': '600px', 'margin-bottom': '20px'})
+        ]),
+
+        dbc.Row([
+            html.Div([
+                """NOTE:  Because the number of agencies submitting arrest data varies from year to year, users are 
+                cautioned about making direct comparisons between arrest totals and those published in previous years' 
+                editions of Crime in the United States. Further, arrest figures may vary widely from state to state because 
+                some Part II crimes are not considered crimes in some states."""
+            ], style={'font-style': 'italic', 'margin-bottom': '10px'})
         ])
 ])
 
 
 @callback(
     [Output('variable-dropdown', 'options'),
-    Output('variable-dropdown', 'value')],
+    Output('variable-dropdown', 'value'),
+    Output('output-div', 'children')],
     [Input('indicator-dropdown', 'value')])
 def set_variable_options(selected_indicator):
     fetcher.loadTable(selected_indicator)
     return [{'label': i, 'value': i} for i in fetcher.dataDict[selected_indicator].keys()], \
-        next(iter(fetcher.dataDict[selected_indicator]))
+        next(iter(fetcher.dataDict[selected_indicator])), None
 
 @callback(
     [Output('group-dropdown', 'options'),
@@ -155,7 +175,7 @@ def generate_plot(selected_years, selected_indicator, selected_variable, selecte
                 hovertemplate = create_hover_template(df[col], col, meta))
         )
     fig.update_layout(
-        title_text=f"{selected_indicator}",
+        title_text=f"<b>{selected_indicator}:</b> <i>{selected_variable} - {selected_group}</i>",
         xaxis=dict(range=selected_years),
         legend=dict(
             x=0.1,  # x-position (0.1 is near left)

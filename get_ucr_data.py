@@ -1,20 +1,10 @@
-from PyQt5.QtWidgets import * 
-from PyQt5 import QtCore, QtGui
-from PyQt5.QtGui import * 
-from PyQt5.QtCore import * 
 import sys
-import requests
 import pandas as pd
-import pyqtgraph as pg
 import numpy as np
-from io import StringIO, BytesIO
-import colorsys 
 import os
-import shutil
 from openpyxl import load_workbook
 import re
 import xlrd
-import time
 import json
 from pathlib import Path
 pd.set_option('future.no_silent_downcasting', True)
@@ -59,7 +49,7 @@ class PopDataFetcher():
 class UCRDataFetcher():
 
     DATA_PATH = r"data"
-    CIUS_STRING = 'Crime in the United States: National volume and rate'
+    CIUS_STRING = 'Crime in the United States, National volume and rate'
     OKLESC_STRING = 'Offenses Known to Law Enforcement by State by City'
     ARE_STRING = 'Arrests by Race and Ethnicity'
     AS_STRING = 'Arrests by State'
